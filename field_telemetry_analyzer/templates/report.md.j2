@@ -1,0 +1,11 @@
+{# SPDX-License-Identifier: Apache-2.0 #}
+# Run report
+
+**{{ banner }}**
+
+Synthetic data only — not real field logs.
+
+- Metric: `{{ score.metric }}`
+- Precision: {{ score.precision }}, recall: {{ score.recall }}
+- TP {{ score.tp }}, FP {{ score.fp }}, FN {{ score.fn }}
+- Flags: {{ n_flags }}

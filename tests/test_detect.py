@@ -1,0 +1,122 @@
+# SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
+
+import subprocess
+import sys
+import tempfile
+
+import pytest
+
+from field_telemetry_analyzer.detect import detect
+from field_telemetry_analyzer.generate import generate, write_run
+from field_telemetry_analyzer.score import score
+
+SEED = 20261110
+
+
+def test_standard_precision_recall(standard_log) -> None:
+    log, events = standard_log
+    flags = detect(log)
+    sc = score(flags, events)
+    assert sc.tp == 8
+    assert sc.fp == 0
+    assert sc.fn == 0
+    assert sc.precision == 1.0
+    assert sc.recall == 1.0
+
+
+def test_clean_zero_flags(clean_log) -> None:
+    log, _ = clean_log
+    assert detect(log) == []
+
+
+def _assert_latency(standard_log, detector: str, expected_us: int) -> None:
+    log, events = standard_log
+    sc = score(detect(log), events)
+    row = next(f for f in sc.faults if f.detector == detector)
+    assert row.outcome == "TP"
+    assert row.latency_us == expected_us
+
+
+def test_latency_imu_bias(standard_log) -> None:
+    _assert_latency(standard_log, "imu_bias", 200000)
+
+
+def test_latency_gyro_dropout(standard_log) -> None:
+    _assert_latency(standard_log, "gyro_dropout", 0)
+
+
+def test_latency_stuck_sensor(standard_log) -> None:
+    _assert_latency(standard_log, "stuck_sensor", 300000)
+
+
+def test_latency_timestamp_gap(standard_log) -> None:
+    _assert_latency(standard_log, "timestamp_gap", 400000)
+
+
+def test_latency_timestamp_jump(standard_log) -> None:
+    _assert_latency(standard_log, "timestamp_jump", 0)
+
+
+def test_latency_actuator_sat(standard_log) -> None:
+    _assert_latency(standard_log, "actuator_sat", 200000)
+
+
+def test_latency_pose_jump(standard_log) -> None:
+    _assert_latency(standard_log, "pose_jump", 0)
+
+
+def test_latency_clock_drift(standard_log) -> None:
+    _assert_latency(standard_log, "clock_drift", 7000000)
+
+
+def test_timestamp_disambiguation(standard_log) -> None:
+    log, _ = standard_log
+    flags = detect(log)
+    assert sum(1 for f in flags if f.detector == "timestamp_gap") == 1
+    assert sum(1 for f in flags if f.detector == "timestamp_jump") == 1
+    recovery = next(p for p in log.pose if p.seq == 2251)
+    assert recovery.t == 45.02
+
+
+@pytest.mark.parametrize(
+    "detector",
+    [
+        "imu_bias",
+        "gyro_dropout",
+        "stuck_sensor",
+        "timestamp_gap",
+        "timestamp_jump",
+        "actuator_sat",
+        "pose_jump",
+        "clock_drift",
+    ],
+)
+def test_disable(standard_log, detector: str) -> None:
+    log, events = standard_log
+    sc = score(detect(log, disable={detector}), events)
+    row = next(f for f in sc.faults if f.detector == detector)
+    assert row.outcome == "FN"
+
+
+def test_disable_cli_imu_bias() -> None:
+    with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as out:
+        log, ev = generate("standard", SEED)
+        write_run(log, ev, d)
+        r = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "field_telemetry_analyzer.cli",
+                "detect",
+                "--log",
+                d,
+                "--out",
+                out,
+                "--disable",
+                "imu_bias",
+            ],
+            capture_output=True,
+            check=False,
+        )
+        assert r.returncode == 0

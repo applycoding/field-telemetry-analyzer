@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: Apache-2.0
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "field-telemetry-analyzer"
+version = "1.0.0"
+description = "Offline synthetic IMU, pose, and actuator log analyzer"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Arpan Bom", email = "applycoding@gmail.com" }]
+dependencies = [
+    "numpy==2.5.4",
+    "matplotlib==3.11.2",
+    "Jinja2==3.1.6",
+    "MarkupSafe==3.0.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.2.0",
+    "ruff==0.17.4",
+    "pip-tools==7.6.2",
+]
+
+[project.scripts]
+fta = "field_telemetry_analyzer.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["field_telemetry_analyzer*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100

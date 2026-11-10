@@ -1,0 +1,24 @@
+{# SPDX-License-Identifier: Apache-2.0 #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ title }}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 52rem; }
+    .banner { background: #fff3cd; border: 1px solid #ffc107; padding: 0.75rem 1rem; margin-bottom: 1.5rem; }
+    img { max-width: 100%; height: auto; }
+  </style>
+</head>
+<body>
+  <div class="banner">{{ banner }}</div>
+  <h1>Run report</h1>
+  <p>Synthetic data only. These are not real field logs.</p>
+  <p>Event metric: {{ score.metric }} — precision {{ score.precision }}, recall {{ score.recall }} (TP {{ score.tp }}, FP {{ score.fp }}, FN {{ score.fn }}).</p>
+  <p>Flags raised: {{ n_flags }}.</p>
+  <h2>Figures</h2>
+  <p><img src="imu.png" alt="IMU streams"></p>
+  <p><img src="pose_path.png" alt="Pose path"></p>
+  <p><img src="flags.png" alt="Flags timeline"></p>
+</body>
+</html>
