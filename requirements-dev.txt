@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+-r requirements.txt
+pytest==9.2.0
+ruff==0.17.4
+pip-tools==7.6.2
+setuptools==75.8.2

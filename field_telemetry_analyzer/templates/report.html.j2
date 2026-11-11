@@ -1,0 +1,66 @@
+{# SPDX-License-Identifier: Apache-2.0 #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ title }}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 56rem; }
+    .banner { background: #fff3cd; border: 1px solid #ffc107; padding: 0.75rem 1rem; margin-bottom: 1.5rem; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.9rem; }
+    th, td { border: 1px solid #ccc; padding: 0.35rem 0.5rem; text-align: left; }
+    img { max-width: 100%; height: auto; margin: 0.5rem 0; }
+  </style>
+</head>
+<body>
+  <div class="banner">{{ banner }}</div>
+  <h1>Run report</h1>
+  <p>Synthetic data only. These are not real field logs.</p>
+  <p>Event metric: {{ score.metric }}. Precision {{ score.precision }}, recall {{ score.recall }} (TP {{ score.tp }}, FP {{ score.fp }}, FN {{ score.fn }}).</p>
+  <p>Flags raised: {{ n_flags }}.</p>
+
+  <h2>Fault attribution</h2>
+  <table>
+    <thead>
+      <tr><th>id</th><th>detector</th><th>outcome</th><th>latency_us</th><th>n_flags</th></tr>
+    </thead>
+    <tbody>
+    {% for f in faults %}
+      <tr>
+        <td>{{ f.id }}</td>
+        <td>{{ f.detector }}</td>
+        <td>{{ f.outcome }}</td>
+        <td>{{ f.latency_us if f.latency_us is not none else "" }}</td>
+        <td>{{ f.n_flags }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Flags</h2>
+  <table>
+    <thead>
+      <tr><th>t_host</th><th>stream</th><th>detector</th><th>seq</th><th>value</th></tr>
+    </thead>
+    <tbody>
+    {% for fl in flags %}
+      <tr>
+        <td>{{ fl.t_host }}</td>
+        <td>{{ fl.stream }}</td>
+        <td>{{ fl.detector }}</td>
+        <td>{{ fl.seq }}</td>
+        <td>{{ fl.value }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Figures</h2>
+  <p><img src="imu.png" alt="IMU streams"></p>
+  <p><img src="pose_path.png" alt="Pose path"></p>
+  <p><img src="pose_time.png" alt="Pose yaw vs time"></p>
+  <p><img src="actuator.png" alt="Actuator measurements"></p>
+  <p><img src="clock_offset.png" alt="Clock drift lag estimate"></p>
+  <p><img src="flags.png" alt="Flags timeline"></p>
+</body>
+</html>

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+__pycache__/
+*.py[cod]
+.eggs/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+node_modules/
+e2e/shot.png
+site-out/
