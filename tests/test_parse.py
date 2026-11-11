@@ -99,6 +99,7 @@ def _cli_detect_fail(log_dir: str, out_dir: str, *, fmt: str = "csv") -> None:
     )
     assert r.returncode == 2
     assert not (Path(out_dir) / "score.json").exists()
+    assert not (Path(out_dir) / "flags.csv").exists()
 
 
 def test_parse_missing_column() -> None:

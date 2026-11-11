@@ -282,13 +282,13 @@ Pytest on the library, no network, no skips.
 
 ## Out of scope
 
-Live streaming, MQTT, databases, Grafana, brokers, ROS, rosbag, and MCAP readers. Real, customer, or Harmattan logs. ML or learned detectors. 3D IMU mechanization beyond planar SE(2) plus specific force. Multi-robot fleets. A battery or actuator-power map. A web app beyond the static report. Certification claims (ISO 26262, flight qualification, production FDIR). Using `t - seq * dt` as the clock-drift statistic. Sample-level micro-P/R. Vendoring tca, imu_tools, robot_localization, foxglove, PlotJuggler, or DiagnosticAggregator.
+Live streaming, MQTT, databases, Grafana, brokers, ROS, rosbag, and MCAP readers. Real or customer logs. ML or learned detectors. 3D IMU mechanization beyond planar SE(2) plus specific force. Multi-robot fleets. A battery or actuator-power map. A web app beyond the static report. Certification claims (ISO 26262, flight qualification, production FDIR). Using `t - seq * dt` as the clock-drift statistic. Sample-level micro-P/R. Vendoring tca, imu_tools, robot_localization, foxglove, PlotJuggler, or DiagnosticAggregator.
 
 ## Documentation and honesty
 
 README order: what it is (offline synthetic IMU/pose/actuator analyzer and run report); what it is not (not real field logs, not a live MQTT/Timescale/Grafana dashboard, not a battery or actuator-power map, not a bag-metric regression bench, not an ML detector, not anyone else's field software); generate / detect / score / report with one copy-paste command using seed `20261110`; Python 3.12 and the pins; honest limits. Those limits state that `ρ = 0.02` is a demo exaggeration, that block-aligned `imu_bias` will not see a `0.20` m/s² accel, that `stuck_sensor` requires a noiseless hold plus motion, that the lag fit is a 1-D grid not a filter, and that PNG bytes are not a portability hash.
 
-`REFERENCES.md` is idea-only credits: textbook trailing-window and residual change detection, ordinary gap and monotonicity checks, cross-correlation delay estimation as the idea behind the lag grid, ROS `sensor_msgs/Imu` field naming, REP-103 axis conventions, matplotlib as the plotting tool. Name each project and its license. Say "inspired by" and "original implementation." Do not cite the private titan-logs repo. Do not copy code from those projects.
+`REFERENCES.md` is idea-only credits: textbook trailing-window and residual change detection, ordinary gap and monotonicity checks, cross-correlation delay estimation as the idea behind the lag grid, ROS `sensor_msgs/Imu` field naming, REP-103 axis conventions, matplotlib as the plotting tool. Name each project and its license. Say "inspired by" and "original implementation." Do not cite private repositories. Do not copy code from those projects.
 
 ## License
 

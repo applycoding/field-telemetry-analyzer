@@ -146,17 +146,25 @@ def _plot_actuator(path: Path, log: RunLog, flags: list[Flag]) -> None:
 
 def _plot_clock_offset(path: Path, windows: list) -> None:
     fig, ax = plt.subplots(figsize=(10, 4))
+    grey_label_set = False
+    blue_label_set = False
     for w in windows:
         if w.identifiable and w.delta is not None:
-            ax.scatter(w.t_host_end, w.delta, color="tab:blue", s=24)
+            lbl = "identified lag" if not blue_label_set else None
+            ax.scatter(w.t_host_end, w.delta, color="tab:blue", s=24, label=lbl)
+            blue_label_set = True
         else:
-            ax.scatter(w.t_host_end, 0.0, color="tab:gray", marker="x", s=30)
+            lbl = "unidentifiable or low excitation" if not grey_label_set else None
+            ax.scatter(
+                w.t_host_end, 0.0, color="tab:gray", marker="x", s=30, label=lbl
+            )
+            grey_label_set = True
     ax.axhline(0.08, color="red", linestyle="--", linewidth=1, label="0.08 s gate")
     ax.axhline(-0.08, color="red", linestyle="--", linewidth=1)
     ax.set_xlabel("window right edge (host time s)")
     ax.set_ylabel("lag estimate delta (s)")
     ax.set_title("Clock drift lag grid (synthetic)")
-    ax.legend(loc="upper right")
+    ax.legend(loc="upper left")
     fig.tight_layout()
     fig.savefig(path, dpi=100)
     plt.close(fig)

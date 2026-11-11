@@ -122,7 +122,9 @@ def analyze_clock_drift_windows(log: RunLog) -> list[ClockDriftWindow]:
         for delta_i in range(-100, 101):
             delta = delta_i * 0.01
             t_q = stamp_arr - delta
-            in_sup = (t_q >= t_lo) & (t_q <= t_hi)
+            in_sup = (t_q >= t_lo) & (t_q <= t_hi) & _interp_pose_gap_ok(
+                t_q, fit_t
+            )
             n_pairs = int(in_sup.sum())
             if n_pairs < DRIFT_GRID_MIN_PAIRS:
                 continue
@@ -426,18 +428,33 @@ def _smooth_pose_rates(
     return out
 
 
+def _interp_pose_gap_ok(
+    t_q: np.ndarray, fit_t: np.ndarray, max_gap: float = 0.04
+) -> np.ndarray:
+    if len(fit_t) < 2:
+        return np.zeros(t_q.shape, dtype=bool)
+    idx = np.searchsorted(fit_t, t_q, side="right") - 1
+    idx = np.clip(idx, 0, len(fit_t) - 2)
+    seg = fit_t[idx + 1] - fit_t[idx]
+    return seg <= max_gap + 1e-9
+
+
 def _detect_clock_drift(log: RunLog) -> list[Flag]:
+    imu = log.imu
     for win in analyze_clock_drift_windows(log):
         if (
             win.identifiable
             and win.delta is not None
             and abs(win.delta) >= DRIFT_ABS
         ):
-            s = log.imu[win.imu_end_seq]
+            seq_in_win = min(win.imu_end_seq - 1, len(imu) - 1)
+            if seq_in_win < 0:
+                continue
+            s = imu[seq_in_win]
             return [
                 Flag(
                     t=s.t,
-                    seq=win.imu_end_seq,
+                    seq=seq_in_win,
                     stream="imu",
                     detector="clock_drift",
                     code="clock_drift",

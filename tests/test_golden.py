@@ -10,7 +10,7 @@ from field_telemetry_analyzer.generate import generate
 from field_telemetry_analyzer.score import score, write_score
 
 SEED = 20261110
-FLAGS_SHA = "ca6883f6728a58c86066a63c69b9f1073b57a123958740fe4cd6d3d696dd15b1"
+FLAGS_SHA = "1cc07fc0dc9b23047de36383eef440ab28ef471403b12cfd1006e5390532d758"
 SCORE_SHA = "9c9de2143fa57534de0a1b29966a77102b3c21835af21bd441fc0c7f46a2cb53"
 
 

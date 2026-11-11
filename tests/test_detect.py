@@ -7,7 +7,8 @@ import tempfile
 
 import pytest
 
-from field_telemetry_analyzer.detect import detect
+import field_telemetry_analyzer.detect as detect_mod
+from field_telemetry_analyzer.detect import _detect_clock_drift, detect
 from field_telemetry_analyzer.generate import generate, write_run
 from field_telemetry_analyzer.score import score
 
@@ -21,6 +22,17 @@ def test_imu_bias_f1_block_delta(standard_log) -> None:
     lead = [imu[s].ax for s in range(1180, 1200)]
     delta = sum(trail) / 20 - sum(lead) / 20
     assert abs(delta - 0.392092) < 1e-5
+    flag = next(f for f in detect(log) if f.detector == "imu_bias" and f.seq == 1220)
+    assert flag.value == delta
+
+
+def test_clock_drift_high_gate_flags_last_window(standard_log, monkeypatch) -> None:
+    log, _ = standard_log
+    monkeypatch.setattr(detect_mod, "DRIFT_ABS", 0.15)
+    flags = _detect_clock_drift(log)
+    assert len(flags) == 1
+    assert flags[0].seq == len(log.imu) - 1
+    assert flags[0].t_host == 60.0
 
 
 def test_standard_precision_recall(standard_log) -> None:
