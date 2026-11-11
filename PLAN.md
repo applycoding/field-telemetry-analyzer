@@ -1,14 +1,14 @@
 # field-telemetry-analyzer — v1 plan
 
-Checked 2026-11-10, then revised the same day after a Codex review and a local prototype at seed `20261110`. Outbound license is **Apache-2.0**. Planning only; no public repo existed when this plan was frozen. `gh repo list applycoding --limit 200` has no `applycoding/field-telemetry-analyzer`.
+Checked 2026-11-10, then revised the same day after an independent review and a local prototype at seed `20261110`. Outbound license is **Apache-2.0**. Planning only; no public repo existed when this plan was frozen. `gh repo list applycoding --limit 200` has no `applycoding/field-telemetry-analyzer`.
 
 ## Goal
 
 Public portfolio demo for Arpan Bom (idea #14): an **offline** analyzer for IMU, pose, and actuator logs. It parses logs, plots signals, raises simple explainable anomaly flags, scores those flags against injected ground truth, and writes a run report (HTML, Markdown, flags CSV, PNG plots).
 
-Harmattan Robotics lists telemetry analysis plus lab and field tests (the listing also mentions telemetry, embedded, and C++). This demo shows Python log parsing, IMU and pose plots, and a field-test-style report. It does not claim Arpan has worked at Harmattan, shipped their field tooling, or analyzed their robot logs. It does not claim real field logs, production FDIR, ISO 26262, flight qualification, or any ML metric.
+This demo shows Python log parsing, IMU and pose plots, and a field-test-style report. It does not claim real field logs, production FDIR, ISO 26262, flight qualification, or any ML metric.
 
-Git author and committer: **Arpan Bom <applycoding@gmail.com>**. No `Co-authored-by`, Cursor, or AI trailer. No AI credit in the README or commits.
+Git author and committer: **Arpan Bom <applycoding@gmail.com>**. No `Co-authored-by` or AI trailer. No AI credit in the README or commits.
 
 Wording in README, REPORT text, and module docs: **"original implementation, inspired by"** well-known residual, windowed-statistic, and change-detection methods. Never "invented."
 
@@ -19,7 +19,7 @@ Python package `field_telemetry_analyzer`, console script `fta`. File in, report
 Differentiate existing applycoding work:
 
 - `applycoding/robot-fleet-mqtt-telemetry` (public) is a live fleet pipeline: robots publish JSON over Mosquitto, ingestion writes TimescaleDB, threshold rules call a webhook, Grafana and REST read the tables. This repo does not use MQTT, TimescaleDB, Grafana, brokers, or live streaming.
-- `applycoding/titan-logs` (private) is an actuator power map for battery pitch. Do not name its algorithms past this sentence, do not copy it, and do not build an actuator-power or battery-pitch map.
+- A private actuator power map for battery pitch exists elsewhere in applycoding. Do not copy it, and do not build an actuator-power or battery-pitch map here.
 - `applycoding/rosbag-eval-bench` (in planning) is MCAP bag metric regression for planning, localization, and detection scores. This repo is not a bag eval bench, does not use MCAP, and does not score planners or detector mAP.
 - `applycoding/teleop-console-demo` is browser teleop record/replay of control messages.
 - `applycoding/react-ts-fleet-dashboard`, `ekf-gnss-localization`, `sim-gimbal-stabilizer`, and `flutter-robot-operator` are a dashboard, an estimator, a gimbal controller, and an operator UI. Do not reuse their code.
@@ -319,7 +319,7 @@ Apache-2.0, not MIT. `LICENSE` is the verbatim file at `https://www.apache.org/l
 
 ## Verification hints
 
-Arithmetic below is closed form. A scratch prototype (`_proto/prototype.py`, not product code) was run on 2026-11-10 at seed `20261110` with the locked scalar draw order, under the box's CPython 3.13.5 and `numpy==2.5.4`. It is evidence for the numeric gates, not a substitute for the CI suite on Python 3.12.16.
+Arithmetic below is closed form. A scratch prototype (`_proto/prototype.py`, not product code) was run on 2026-11-10 at seed `20261110` with the locked scalar draw order, under CPython 3.13.5 and `numpy==2.5.4`. It is evidence for the numeric gates, not a substitute for the CI suite on Python 3.12.16.
 
 Truth pose before noise, arc recurrence:
 

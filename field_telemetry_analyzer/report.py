@@ -12,6 +12,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from field_telemetry_analyzer.detect import analyze_clock_drift_windows
 from field_telemetry_analyzer.models import Event, Flag, RunLog, Score
 
 TITLE = "Field telemetry analyzer (synthetic data only)"
@@ -27,6 +28,7 @@ def write_report(
 ) -> None:
     out = Path(out_dir)
     os.makedirs(out, exist_ok=True)
+    drift_windows = analyze_clock_drift_windows(log)
     _write_flags_csv(out / "flags.csv", flags)
     env = Environment(
         loader=FileSystemLoader(str(Path(__file__).parent / "templates")),
@@ -38,6 +40,8 @@ def write_report(
         "score": score,
         "n_flags": len(flags),
         "synthetic_notice": BANNER,
+        "flags": sorted(flags, key=lambda f: (f.t_host, f.stream, f.detector, f.seq)),
+        "faults": score.faults,
     }
     md = env.get_template("report.md.j2").render(**context)
     html = env.get_template("report.html.j2").render(**context)
@@ -48,7 +52,7 @@ def write_report(
     _plot_pose_path(out / "pose_path.png", log)
     _plot_pose_time(out / "pose_time.png", log, flags)
     _plot_actuator(out / "actuator.png", log, flags)
-    _plot_clock(out / "clock_offset.png", log)
+    _plot_clock_offset(out / "clock_offset.png", drift_windows)
     _plot_flags(out / "flags.png", flags)
 
 
@@ -79,7 +83,7 @@ def _plot_imu(
     axes[0].plot(t, [s.ax for s in log.imu], label="ax")
     axes[0].plot(t, [s.ay for s in log.imu], label="ay")
     axes[0].plot(t, [s.az for s in log.imu], label="az")
-    axes[0].set_ylabel("accel m/s²")
+    axes[0].set_ylabel("accel m/s^2")
     axes[0].legend(loc="upper right", fontsize=8)
     axes[1].plot(t, [s.gx for s in log.imu], label="gx")
     axes[1].plot(t, [s.gy for s in log.imu], label="gy")
@@ -140,13 +144,19 @@ def _plot_actuator(path: Path, log: RunLog, flags: list[Flag]) -> None:
     plt.close(fig)
 
 
-def _plot_clock(path: Path, log: RunLog) -> None:
-    offsets = [(s.t - s.seq * 0.01) * 1e6 for s in log.imu[::100]]
-    t = [s.seq * 0.01 for s in log.imu[::100]]
-    fig, ax = plt.subplots(figsize=(10, 3))
-    ax.plot(t, offsets)
-    ax.set_ylabel("stamp offset µs")
-    ax.set_xlabel("host time s")
+def _plot_clock_offset(path: Path, windows: list) -> None:
+    fig, ax = plt.subplots(figsize=(10, 4))
+    for w in windows:
+        if w.identifiable and w.delta is not None:
+            ax.scatter(w.t_host_end, w.delta, color="tab:blue", s=24)
+        else:
+            ax.scatter(w.t_host_end, 0.0, color="tab:gray", marker="x", s=30)
+    ax.axhline(0.08, color="red", linestyle="--", linewidth=1, label="0.08 s gate")
+    ax.axhline(-0.08, color="red", linestyle="--", linewidth=1)
+    ax.set_xlabel("window right edge (host time s)")
+    ax.set_ylabel("lag estimate delta (s)")
+    ax.set_title("Clock drift lag grid (synthetic)")
+    ax.legend(loc="upper right")
     fig.tight_layout()
     fig.savefig(path, dpi=100)
     plt.close(fig)

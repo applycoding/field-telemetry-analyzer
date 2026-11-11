@@ -35,11 +35,11 @@ This demo must stay distinct from existing applycoding work (list checked 2026-1
 - URL: https://github.com/matplotlib/matplotlib
 - License: matplotlib license agreement (versions 1.3.0 and later), file `LICENSE/LICENSE` on `main`, checked 2026-11-10
 - Docs: https://matplotlib.org/stable/users/project/license.html (HTTP 200 on 2026-11-10)
-- Borrow: ordinary use of the public plotting API for the run-report figures. Do not vendor matplotlib sources. NOTICE must include the matplotlib license text as a dependency attribution, separate from this idea credit.
+- Borrow: ordinary use of the public plotting API for the run-report figures. Do not vendor matplotlib sources.
 
 ### 4. Windowed change detection and residual checks (literature)
 
-- Michèle Basseville and Igor V. Nikiforov, *Detection of Abrupt Changes: Theory and Application*, Prentice-Hall, 1993. Author PDF (informational, idea only): https://people.irisa.fr/Michele.Basseville/kniga/ (do not copy text or code from the book).
+- Michèle Basseville and Igor V. Nikiforov, *Detection of Abrupt Changes: Theory and Application*, Prentice-Hall, 1993, ISBN 0-13-126780-9. Author PDF (informational, idea only): https://people.irisa.fr/Michele.Basseville/kniga/ (do not copy text or code from the book).
 - Borrow: the general idea of comparing a trailing window statistic to a threshold, and of scoring detections against known injection times. The block-mean `imu_bias` rule in this demo is an original, deliberately simple implementation, not a CUSUM library and not a reproduction of the book's algorithms.
 
 ### 5. Time-delay estimation by a lag grid

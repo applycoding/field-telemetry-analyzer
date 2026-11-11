@@ -14,7 +14,9 @@ Python runtime (requirements.lock.txt)
 - packaging 26.3 — License: Apache-2.0 OR BSD-2-Clause
 - pillow 13.0.0 — License: MIT-CMU
 - pyparsing 3.3.3 — License: MIT
-- python-dateutil 4.0.0 — License: Apache-2.0 OR BSD-3-Clause
+- python-dateutil 4.0.0 — License: BSD-3-Clause; contributions after 2017-12-01 dual Apache-2.0 / BSD-3-Clause (per its LICENSE)
+- tzdata 2026.6 — License: Apache-2.0
+
 Python development (requirements-dev.lock.txt additions)
 - pytest 9.2.0 — License: MIT
 - iniconfig 2.3.1 — License: MIT
@@ -26,7 +28,6 @@ Python development (requirements-dev.lock.txt additions)
 - click 8.5.1 — License: BSD-3-Clause
 - pyproject-hooks 1.3.3 — License: MIT
 - wheel 0.48.0 — License: MIT
-- tzdata 2026.6 — License: Apache-2.0
 - setuptools 75.8.2 — License: MIT
 
 Toolchain pins

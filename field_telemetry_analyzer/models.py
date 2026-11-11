@@ -66,6 +66,15 @@ class Flag:
     t_host: float
 
 
+@dataclass(frozen=True)
+class ClockDriftWindow:
+    t_host_end: float
+    imu_end_seq: int
+    delta: float | None
+    identifiable: bool
+    sse: float | None
+
+
 class ParseError(Exception):
     def __init__(self, code: str, message: str) -> None:
         self.code = code

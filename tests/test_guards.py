@@ -57,6 +57,17 @@ def test_scope_guards() -> None:
         text = wf.read_text(encoding="utf-8")
         assert "continue-on-error" not in text
         assert not re.search(r"run:\s*echo\s+['\"]?ok", text)
+    pt = (ROOT / ".github" / "workflows" / "pages.yml").read_text(encoding="utf-8")
+    assert "stale" in pt
+    for wf in (ROOT / ".github" / "workflows").glob("*.yml"):
+        text = wf.read_text(encoding="utf-8")
+        blocks = re.findall(r"(?ms)^  \w[\w-]*:\n((?:    .+\n)+)", text)
+        for block in blocks:
+            if "steps:" not in block:
+                continue
+            run_lines = re.findall(r"^\s+run:\s*(.+)$", block, re.MULTILINE)
+            if run_lines and all(re.match(r"echo\b", ln.strip(), re.IGNORECASE) for ln in run_lines):
+                raise AssertionError(f"job only echo run steps in {wf.name}")
     pages = ROOT / ".github" / "workflows" / "pages.yml"
     assert pages.is_file()
     pt = pages.read_text(encoding="utf-8")

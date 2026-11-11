@@ -19,7 +19,7 @@ On the `standard` scenario, seed `20261110`, a 60 s planar run, the generator in
 
 A `clean` scenario uses the same trajectory and the same noise draws with no injections and must produce zero flags.
 
-## Quick start (after the implementation is in the tree)
+## Quick start
 
 ```bash
 # Python 3.12.16 recommended (CI pin)
@@ -27,11 +27,12 @@ pip install --require-hashes -r requirements-dev.lock.txt
 pip install -e .
 
 fta generate --scenario standard --seed 20261110 --out /tmp/fta-standard
-fta detect  --log /tmp/fta-standard --out /tmp/fta-standard-out
+fta detect  --log /tmp/fta-standard --out /tmp/fta-detect
 fta score   --log /tmp/fta-standard --truth /tmp/fta-standard/ground_truth.json \
-            --flags /tmp/fta-standard-out/flags.csv --out /tmp/fta-standard-out/score.json --gate
-fta report  --log /tmp/fta-standard --flags /tmp/fta-standard-out/flags.csv \
-            --score /tmp/fta-standard-out/score.json --out /tmp/fta-standard-out --truth /tmp/fta-standard/ground_truth.json
+            --flags /tmp/fta-detect/flags.csv --out /tmp/fta-detect/score.json --gate
+fta report  --log /tmp/fta-standard --flags /tmp/fta-detect/flags.csv \
+            --score /tmp/fta-detect/score.json --out /tmp/fta-site \
+            --truth /tmp/fta-standard/ground_truth.json
 ```
 
 A sample report, always labelled synthetic data, is published on GitHub Pages after green CI on `main`.
@@ -46,4 +47,4 @@ A sample report, always labelled synthetic data, is published on GitHub Pages af
 
 ## License
 
-Apache-2.0. Copyright 2026 Arpan Bom. See [LICENSE](LICENSE). A NOTICE file with dependency versions, licenses, and a pointer to [REFERENCES.md](REFERENCES.md) will be completed during implementation.
+Apache-2.0. Copyright 2026 Arpan Bom. See [LICENSE](LICENSE). Dependency versions, licenses, and a pointer to [REFERENCES.md](REFERENCES.md) are in [NOTICE](NOTICE).

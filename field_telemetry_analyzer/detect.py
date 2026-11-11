@@ -8,16 +8,26 @@ from collections.abc import Collection
 import numpy as np
 
 from field_telemetry_analyzer.kinematics import U_MAX
-from field_telemetry_analyzer.models import ActuatorSample, Flag, ImuSample, PoseSample, RunLog
+from field_telemetry_analyzer.models import (
+    ActuatorSample,
+    ClockDriftWindow,
+    Flag,
+    ImuSample,
+    PoseSample,
+    RunLog,
+)
 
 IMU_BIAS_DELTA = 0.25
-IMU_BIAS_W = 0.20
+IMU_BIAS_BLOCK = 20
 STUCK_VAR = 2.5e-7
-STUCK_W = 0.30
+STUCK_IMU_BLOCK = 30
 GAP_TH = 0.10
-SAT_DWELL = 0.20
+SAT_DWELL_SAMPLES = 10
 POSE_V_MAX = 0.80
 DRIFT_ABS = 0.08
+DRIFT_WINDOW_S = 5.0
+DRIFT_STRIDE_S = 2.5
+DRIFT_GRID_MIN_PAIRS = 10
 
 ALL_DETECTORS = (
     "imu_bias",
@@ -57,56 +67,123 @@ def detect(log: RunLog, disable: Collection[str] = ()) -> list[Flag]:
     return flags
 
 
-def _t_host_imu(seq: int) -> float:
-    return seq * 0.01
+def analyze_clock_drift_windows(log: RunLog) -> list[ClockDriftWindow]:
+    pose = log.pose
+    imu = log.imu
+    rate_mids, rate_raw = _pose_yaw_rates(pose)
+    if not rate_mids:
+        return []
+    smooth_rate = _smooth_pose_rates(rate_mids, rate_raw, 0.20)
+    smooth_gz = _rolling_mean_imu_gz_seq(imu, IMU_BIAS_BLOCK)
 
-
-def _t_host_pose(seq: int) -> float:
-    return seq * 0.02
+    out: list[ClockDriftWindow] = []
+    w_index = 1
+    while True:
+        t0 = DRIFT_STRIDE_S * w_index
+        t1 = t0 + DRIFT_WINDOW_S
+        if t1 > 60.0 + 1e-9:
+            break
+        imu_lo = w_index * int(DRIFT_STRIDE_S / 0.01)
+        imu_hi = imu_lo + int(DRIFT_WINDOW_S / 0.01)
+        win_mids: list[float] = []
+        win_rates: list[float] = []
+        for mid, sm in zip(rate_mids, smooth_rate, strict=True):
+            if t0 <= mid < t1 and sm is not None:
+                win_mids.append(mid)
+                win_rates.append(sm)
+        if len(win_mids) < 2:
+            out.append(
+                ClockDriftWindow(t1, imu_hi, None, False, None)
+            )
+            w_index += 1
+            continue
+        ptp = max(win_rates) - min(win_rates)
+        if ptp < 0.20:
+            out.append(ClockDriftWindow(t1, imu_hi, None, False, None))
+            w_index += 1
+            continue
+        fit_t = np.array(win_mids, dtype=float)
+        fit_r = np.array(win_rates, dtype=float)
+        imu_idxs = [
+            i
+            for i in range(imu_lo, imu_hi)
+            if 0 <= i < len(imu) and smooth_gz[i] is not None
+        ]
+        if not imu_idxs:
+            out.append(ClockDriftWindow(t1, imu_hi, None, False, None))
+            w_index += 1
+            continue
+        gz_arr = np.array([smooth_gz[i] for i in imu_idxs], dtype=float)
+        stamp_arr = np.array([imu[i].t for i in imu_idxs], dtype=float)
+        t_lo, t_hi = float(fit_t[0]), float(fit_t[-1])
+        best_sse = float("inf")
+        best_delta = 0.0
+        any_valid = False
+        for delta_i in range(-100, 101):
+            delta = delta_i * 0.01
+            t_q = stamp_arr - delta
+            in_sup = (t_q >= t_lo) & (t_q <= t_hi)
+            n_pairs = int(in_sup.sum())
+            if n_pairs < DRIFT_GRID_MIN_PAIRS:
+                continue
+            any_valid = True
+            rate_v = np.interp(t_q[in_sup], fit_t, fit_r)
+            sse = float(np.sum((gz_arr[in_sup] - rate_v) ** 2))
+            if sse < best_sse - 1e-15:
+                best_sse = sse
+                best_delta = delta
+            elif abs(sse - best_sse) <= 1e-12 and (
+                abs(delta) < abs(best_delta)
+                or (abs(delta) == abs(best_delta) and delta < best_delta)
+            ):
+                best_delta = delta
+        identifiable = (
+            any_valid
+            and math.isfinite(best_sse)
+            and abs(best_delta) < 1.0 - 1e-9
+        )
+        out.append(
+            ClockDriftWindow(
+                t_host_end=t1,
+                imu_end_seq=imu_hi,
+                delta=best_delta if identifiable else None,
+                identifiable=identifiable,
+                sse=best_sse if identifiable else None,
+            )
+        )
+        w_index += 1
+    return out
 
 
 def _detect_imu_bias(imu: tuple[ImuSample, ...]) -> list[Flag]:
     flags: list[Flag] = []
-    if not imu:
-        return flags
-    t_end = imu[-1].t
-    k = 2
-    while True:
-        t_edge = k * IMU_BIAS_W
-        if t_edge > t_end + 1e-9:
+    n = len(imu)
+    for k in range(2, n // IMU_BIAS_BLOCK + 1):
+        end_seq = k * IMU_BIAS_BLOCK
+        if end_seq >= n:
             break
-        ax_trail = _block_mean_ax(imu, t_edge - IMU_BIAS_W, t_edge)
-        ax_lead = _block_mean_ax(imu, t_edge - 2 * IMU_BIAS_W, t_edge - IMU_BIAS_W)
-        if ax_trail is not None and ax_lead is not None:
-            delta = ax_trail - ax_lead
-            if abs(delta) >= IMU_BIAS_DELTA:
-                seq = round(t_edge / 0.01)
-                flags.append(
-                    Flag(
-                        t=imu[seq].t,
-                        seq=seq,
-                        stream="imu",
-                        detector="imu_bias",
-                        code="imu_bias",
-                        value=delta,
-                        t_host=_t_host_imu(seq),
-                    )
+        trail_lo, trail_hi = end_seq - IMU_BIAS_BLOCK, end_seq
+        lead_lo, lead_hi = end_seq - 2 * IMU_BIAS_BLOCK, end_seq - IMU_BIAS_BLOCK
+        trail = [imu[s].ax for s in range(trail_lo, trail_hi)]
+        lead = [imu[s].ax for s in range(lead_lo, lead_hi)]
+        if len(trail) != IMU_BIAS_BLOCK or len(lead) != IMU_BIAS_BLOCK:
+            continue
+        if not all(math.isfinite(x) for x in trail + lead):
+            continue
+        delta = float(np.mean(trail)) - float(np.mean(lead))
+        if abs(delta) >= IMU_BIAS_DELTA:
+            flags.append(
+                Flag(
+                    t=imu[end_seq].t,
+                    seq=end_seq,
+                    stream="imu",
+                    detector="imu_bias",
+                    code="imu_bias",
+                    value=delta,
+                    t_host=end_seq * 0.01,
                 )
-        k += 1
+            )
     return flags
-
-
-def _block_mean_ax(imu: tuple[ImuSample, ...], t0: float, t1: float) -> float | None:
-    vals = []
-    for s in imu:
-        th = _t_host_imu(s.seq)
-        if t0 <= th < t1:
-            if not math.isfinite(s.ax):
-                return None
-            vals.append(s.ax)
-    if not vals:
-        return None
-    return float(np.mean(vals))
 
 
 def detect_gyro_dropout(imu: tuple[ImuSample, ...]) -> list[Flag]:
@@ -127,7 +204,7 @@ def detect_gyro_dropout(imu: tuple[ImuSample, ...]) -> list[Flag]:
                     detector="gyro_dropout",
                     code="gyro_dropout",
                     value=1.0 if nan_g else s.t - (prev_t or s.t),
-                    t_host=_t_host_imu(s.seq),
+                    t_host=s.seq * 0.01,
                 )
             )
             break
@@ -138,28 +215,31 @@ def detect_gyro_dropout(imu: tuple[ImuSample, ...]) -> list[Flag]:
 
 def _detect_stuck_sensor(log: RunLog) -> list[Flag]:
     imu = log.imu
-    n_in_win = round(STUCK_W / 0.01)
+    act_by_seq = {a.seq: a for a in log.actuator}
     flags: list[Flag] = []
-    for end_seq in range(n_in_win, 6000):
-        t1 = end_seq * 0.01
-        t0 = t1 - STUCK_W
-        lo = end_seq - n_in_win
+    for end_seq in range(STUCK_IMU_BLOCK, len(imu)):
+        lo = end_seq - STUCK_IMU_BLOCK
         gz_vals: list[float] = []
         for seq in range(lo, end_seq):
-            s = imu[seq]
-            if not math.isfinite(s.gz):
+            v = imu[seq].gz
+            if not math.isfinite(v):
                 gz_vals = []
                 break
-            gz_vals.append(s.gz)
-        if len(gz_vals) != n_in_win:
+            gz_vals.append(v)
+        if len(gz_vals) != STUCK_IMU_BLOCK:
             continue
         arr = np.array(gz_vals, dtype=float)
         var = float(np.var(arr, ddof=0))
-        if var >= STUCK_VAR:
+        if var >= STUCK_VAR or arr.max() != arr.min():
             continue
-        if arr.max() != arr.min():
-            continue
-        if not _actuator_motion_in_window(log.actuator, t0, t1):
+        lo_act = lo // 2
+        hi_act = end_seq // 2
+        speeds = [
+            max(abs(act_by_seq[s].left_meas), abs(act_by_seq[s].right_meas))
+            for s in range(lo_act, hi_act)
+            if s in act_by_seq
+        ]
+        if not speeds or float(np.mean(speeds)) <= 0.05:
             continue
         edge = imu[end_seq]
         flags.append(
@@ -170,24 +250,11 @@ def _detect_stuck_sensor(log: RunLog) -> list[Flag]:
                 detector="stuck_sensor",
                 code="stuck_sensor",
                 value=var,
-                t_host=t1,
+                t_host=end_seq * 0.01,
             )
         )
         break
     return flags
-
-
-def _actuator_motion_in_window(
-    actuator: tuple[ActuatorSample, ...], t0: float, t1: float
-) -> bool:
-    speeds = []
-    for s in actuator:
-        th = _t_host_pose(s.seq)
-        if t0 <= th < t1:
-            speeds.append(max(abs(s.left_meas), abs(s.right_meas)))
-    if not speeds:
-        return False
-    return float(np.mean(speeds)) > 0.05
 
 
 def _detect_timestamp_gap(pose: tuple[PoseSample, ...]) -> list[Flag]:
@@ -204,7 +271,7 @@ def _detect_timestamp_gap(pose: tuple[PoseSample, ...]) -> list[Flag]:
                     detector="timestamp_gap",
                     code="timestamp_gap",
                     value=dt,
-                    t_host=_t_host_pose(cur.seq),
+                    t_host=cur.seq * 0.02,
                 )
             )
             break
@@ -225,7 +292,7 @@ def _detect_timestamp_jump(pose: tuple[PoseSample, ...]) -> list[Flag]:
                     detector="timestamp_jump",
                     code="timestamp_jump",
                     value=dt,
-                    t_host=_t_host_pose(cur.seq),
+                    t_host=cur.seq * 0.02,
                 )
             )
     return flags
@@ -233,18 +300,18 @@ def _detect_timestamp_jump(pose: tuple[PoseSample, ...]) -> list[Flag]:
 
 def _detect_actuator_sat(actuator: tuple[ActuatorSample, ...]) -> list[Flag]:
     flags: list[Flag] = []
-    n_in_win = round(SAT_DWELL / 0.02)
     if not actuator:
         return flags
-    for end_seq in range(n_in_win, 3000):
-        t1 = end_seq * 0.02
-        t0 = t1 - SAT_DWELL
-        window = [s for s in actuator if t0 <= _t_host_pose(s.seq) < t1]
-        if len(window) < n_in_win:
+    act_by_seq = {a.seq: a for a in actuator}
+    max_seq = max(a.seq for a in actuator)
+    for end_seq in range(SAT_DWELL_SAMPLES, max_seq + 1):
+        lo = end_seq - SAT_DWELL_SAMPLES
+        window = [act_by_seq[s] for s in range(lo, end_seq) if s in act_by_seq]
+        if len(window) != SAT_DWELL_SAMPLES:
             continue
         for side in ("left", "right"):
             if _sat_side(window, side):
-                s = next(x for x in actuator if x.seq == end_seq)
+                s = act_by_seq[end_seq]
                 flags.append(
                     Flag(
                         t=s.t,
@@ -253,7 +320,7 @@ def _detect_actuator_sat(actuator: tuple[ActuatorSample, ...]) -> list[Flag]:
                         detector="actuator_sat",
                         code="actuator_sat",
                         value=U_MAX,
-                        t_host=t1,
+                        t_host=end_seq * 0.02,
                     )
                 )
                 return flags
@@ -261,7 +328,7 @@ def _detect_actuator_sat(actuator: tuple[ActuatorSample, ...]) -> list[Flag]:
 
 
 def _sat_side(window: list[ActuatorSample], side: str) -> bool:
-    if not window:
+    if len(window) != SAT_DWELL_SAMPLES:
         return False
     cmd_ok = False
     for s in window:
@@ -298,7 +365,7 @@ def _detect_pose_jump(pose: tuple[PoseSample, ...]) -> list[Flag]:
                     detector="pose_jump",
                     code="pose_jump",
                     value=dist,
-                    t_host=_t_host_pose(cur.seq),
+                    t_host=cur.seq * 0.02,
                 )
             )
     return flags
@@ -308,25 +375,7 @@ def _wrap_angle(a: float) -> float:
     return math.atan2(math.sin(a), math.cos(a))
 
 
-def _trailing_mean_times(
-    times: list[float], values: list[float], t_query: float, window: float
-) -> float | None:
-    if not times:
-        return None
-    t0 = t_query - window
-    acc: list[float] = []
-    for t, v in zip(times, values, strict=True):
-        if t0 <= t < t_query:
-            if not math.isfinite(v):
-                return None
-            acc.append(v)
-    if not acc:
-        return None
-    return float(np.mean(acc))
-
-
-def _pose_yaw_rates(pose: tuple[PoseSample, ...]) -> tuple[list[float], list[float], list[float]]:
-    """Return host midpoints, raw interval rates, host stamp pairs for smoothing."""
+def _pose_yaw_rates(pose: tuple[PoseSample, ...]) -> tuple[list[float], list[float]]:
     mids: list[float] = []
     rates: list[float] = []
     for i in range(1, len(pose)):
@@ -338,24 +387,19 @@ def _pose_yaw_rates(pose: tuple[PoseSample, ...]) -> tuple[list[float], list[flo
         dyaw = _wrap_angle(cur.yaw - prev.yaw)
         dt = (cur.seq - prev.seq) * 0.02
         rate = dyaw / dt
-        t_mid = 0.5 * (_t_host_pose(prev.seq) + _t_host_pose(cur.seq))
+        t_mid = 0.5 * (prev.seq + cur.seq) * 0.02
         mids.append(t_mid)
         rates.append(rate)
-    return mids, rates, mids
+    return mids, rates
 
 
-def _rolling_mean_imu_gz(imu: tuple[ImuSample, ...], window: float) -> list[float | None]:
-    n = round(window / 0.01)
+def _rolling_mean_imu_gz_seq(imu: tuple[ImuSample, ...], n: int) -> list[float | None]:
     out: list[float | None] = [None] * len(imu)
-    for i in range(len(imu)):
-        lo = i - n
-        if lo < 0:
-            continue
+    for i in range(n, len(imu)):
         chunk: list[float] = []
-        for j in range(lo, i):
+        for j in range(i - n, i):
             v = imu[j].gz
             if not math.isfinite(v):
-                out[i] = None
                 chunk = []
                 break
             chunk.append(v)
@@ -383,106 +427,22 @@ def _smooth_pose_rates(
 
 
 def _detect_clock_drift(log: RunLog) -> list[Flag]:
-    pose = log.pose
-    imu = log.imu
-    rate_mids, rate_raw, _ = _pose_yaw_rates(pose)
-    if not rate_mids:
-        return []
-
-    imu_hosts = [_t_host_imu(s.seq) for s in imu]
-    imu_stamps = [s.t for s in imu]
-
-    smooth_rate = _smooth_pose_rates(rate_mids, rate_raw, 0.20)
-    smooth_gz = _rolling_mean_imu_gz(imu, 0.20)
-
-    t0 = 2.5
-    while t0 + 5.0 <= 60.0 + 1e-9:
-        t1 = t0 + 5.0
-        in_win = [(m, r) for m, r in zip(rate_mids, smooth_rate, strict=True) if t0 <= m < t1 and r is not None]
-        if len(in_win) < 2:
-            t0 += 2.5
-            continue
-        ptp = max(v for _, v in in_win) - min(v for _, v in in_win)
-        if ptp < 0.20:
-            t0 += 2.5
-            continue
-        fit_times = np.array(rate_mids, dtype=float)
-        fit_rates = np.array(
-            [r if r is not None else np.nan for r in smooth_rate], dtype=float
-        )
-        valid = np.isfinite(fit_rates)
-        fit_times = fit_times[valid]
-        fit_rates = fit_rates[valid]
-        if fit_times.size < 2:
-            t0 += 2.5
-            continue
-        t_lo, t_hi = fit_times[0], fit_times[-1]
-        idxs = [
-            i
-            for i, th in enumerate(imu_hosts)
-            if t0 <= th < t1 and smooth_gz[i] is not None
-        ]
-        if len(idxs) < 10:
-            t0 += 2.5
-            continue
-        gz_arr = np.array([smooth_gz[i] for i in idxs], dtype=float)
-        stamp_arr = np.array([imu_stamps[i] for i in idxs], dtype=float)
-        best_sse = float("inf")
-        best_delta = 0.0
-        best_pairs = len(idxs)
-        for delta_i in range(-100, 101):
-            delta = delta_i * 0.01
-            t_q = stamp_arr - delta
-            in_sup = (t_q >= t_lo) & (t_q <= t_hi)
-            if int(in_sup.sum()) < 10:
-                continue
-            rate_v = np.interp(t_q[in_sup], fit_times, fit_rates)
-            sse = float(np.sum((gz_arr[in_sup] - rate_v) ** 2))
-            if sse < best_sse - 1e-15:
-                best_sse = sse
-                best_delta = delta
-            elif (
-                abs(sse - best_sse) <= 1e-12
-                and (
-                    abs(delta) < abs(best_delta)
-                    or abs(delta) == abs(best_delta)
-                    and delta < best_delta
-                )
-            ):
-                best_delta = delta
-        if best_pairs < 10 or abs(best_delta) >= 1.0 - 1e-9:
-            t0 += 2.5
-            continue
-        if abs(best_delta) >= DRIFT_ABS:
-            end_seq = round(t1 / 0.01)
-            s = imu[end_seq]
+    for win in analyze_clock_drift_windows(log):
+        if (
+            win.identifiable
+            and win.delta is not None
+            and abs(win.delta) >= DRIFT_ABS
+        ):
+            s = log.imu[win.imu_end_seq]
             return [
                 Flag(
                     t=s.t,
-                    seq=end_seq,
+                    seq=win.imu_end_seq,
                     stream="imu",
                     detector="clock_drift",
                     code="clock_drift",
-                    value=best_delta,
-                    t_host=t1,
+                    value=win.delta,
+                    t_host=win.t_host_end,
                 )
             ]
-        t0 += 2.5
     return []
-
-
-def _interp_linear(
-    times: list[float], values: list[float | None], t: float
-) -> float | None:
-    if not times or t < times[0] or t > times[-1]:
-        return None
-    i = int(np.searchsorted(times, t, side="right")) - 1
-    if i < 0 or i >= len(times) - 1:
-        return None
-    if values[i] is None or values[i + 1] is None:
-        return None
-    t0, t1 = times[i], times[i + 1]
-    if t1 == t0:
-        return values[i]
-    frac = (t - t0) / (t1 - t0)
-    return values[i] + frac * (values[i + 1] - values[i])

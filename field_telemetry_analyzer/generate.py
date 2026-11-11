@@ -219,9 +219,12 @@ def write_run(log: RunLog, events: tuple[Event, ...], out_dir: str) -> None:
         _write_ground_truth(os.path.join(out_dir, "ground_truth.json"), events)
 
 
+def _quantize_t(t: float) -> float:
+    return round(t * 1e6) / 1e6
+
+
 def _fmt_ts_us(t: float) -> str:
-    us = round(t * 1e6)
-    return f"{us / 1e6:.6f}"
+    return f"{_quantize_t(t):.6f}"
 
 
 def _fmt_float(x: float) -> str:
@@ -296,7 +299,7 @@ def _write_jsonl(path: str, log: RunLog) -> None:
                 s.seq * 0.01,
                 0,
                 {
-                    "t": s.t,
+                    "t": _quantize_t(s.t),
                     "seq": s.seq,
                     "topic": "/imu/data",
                     "type": "Imu",
@@ -317,7 +320,7 @@ def _write_jsonl(path: str, log: RunLog) -> None:
                 s.seq * 0.02,
                 1,
                 {
-                    "t": s.t,
+                    "t": _quantize_t(s.t),
                     "seq": s.seq,
                     "topic": "/pose",
                     "type": "Pose",
@@ -331,7 +334,7 @@ def _write_jsonl(path: str, log: RunLog) -> None:
                 s.seq * 0.02,
                 2,
                 {
-                    "t": s.t,
+                    "t": _quantize_t(s.t),
                     "seq": s.seq,
                     "topic": "/actuator",
                     "type": "Actuator",

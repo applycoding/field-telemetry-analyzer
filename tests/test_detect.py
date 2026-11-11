@@ -14,6 +14,15 @@ from field_telemetry_analyzer.score import score
 SEED = 20261110
 
 
+def test_imu_bias_f1_block_delta(standard_log) -> None:
+    log, _ = standard_log
+    imu = log.imu
+    trail = [imu[s].ax for s in range(1200, 1220)]
+    lead = [imu[s].ax for s in range(1180, 1200)]
+    delta = sum(trail) / 20 - sum(lead) / 20
+    assert abs(delta - 0.392092) < 1e-5
+
+
 def test_standard_precision_recall(standard_log) -> None:
     log, events = standard_log
     flags = detect(log)

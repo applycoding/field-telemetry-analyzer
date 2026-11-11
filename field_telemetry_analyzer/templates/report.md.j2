@@ -3,9 +3,29 @@
 
 **{{ banner }}**
 
-Synthetic data only — not real field logs.
+Synthetic data only. These are not real field logs.
 
 - Metric: `{{ score.metric }}`
 - Precision: {{ score.precision }}, recall: {{ score.recall }}
 - TP {{ score.tp }}, FP {{ score.fp }}, FN {{ score.fn }}
 - Flags: {{ n_flags }}
+
+## Fault attribution
+
+| id | detector | outcome | latency_us | n_flags |
+| --- | --- | --- | --- | --- |
+{% for f in faults -%}
+| {{ f.id }} | {{ f.detector }} | {{ f.outcome }} | {% if f.latency_us is not none %}{{ f.latency_us }}{% endif %} | {{ f.n_flags }} |
+{% endfor %}
+
+## Flags
+
+| t_host | stream | detector | seq | value |
+| --- | --- | --- | --- | --- |
+{% for fl in flags -%}
+| {{ fl.t_host }} | {{ fl.stream }} | {{ fl.detector }} | {{ fl.seq }} | {{ fl.value }} |
+{% endfor %}
+
+## Figures
+
+- imu.png, pose_path.png, pose_time.png, actuator.png, clock_offset.png, flags.png
