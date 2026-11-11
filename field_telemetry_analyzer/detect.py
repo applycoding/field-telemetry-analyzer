@@ -447,14 +447,16 @@ def _detect_clock_drift(log: RunLog) -> list[Flag]:
             and win.delta is not None
             and abs(win.delta) >= DRIFT_ABS
         ):
-            seq_in_win = min(win.imu_end_seq - 1, len(imu) - 1)
-            if seq_in_win < 0:
+            seq_flag = (
+                win.imu_end_seq if win.imu_end_seq < len(imu) else len(imu) - 1
+            )
+            if seq_flag < 0:
                 continue
-            s = imu[seq_in_win]
+            s = imu[seq_flag]
             return [
                 Flag(
                     t=s.t,
-                    seq=seq_in_win,
+                    seq=seq_flag,
                     stream="imu",
                     detector="clock_drift",
                     code="clock_drift",
