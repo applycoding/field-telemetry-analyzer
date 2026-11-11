@@ -31,7 +31,7 @@ Python development (requirements-dev.lock.txt additions)
 
 Toolchain pins
 - Python 3.12.16 — License: PSF-2.0
-- pip 24.0 — License: MIT
+- pip 26.3 — License: MIT
 - Node.js 24.22.2 — License: MIT
 - @playwright/test 1.65.0 — License: Apache-2.0
 - http-server 14.1.1 — License: MIT
